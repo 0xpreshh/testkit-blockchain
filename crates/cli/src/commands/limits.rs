@@ -440,9 +440,7 @@ mod tests {
             doc: "".try_into().expect("empty doc fits"),
             name: ScSymbol(name.try_into().expect("fixture name fits in 32 bytes")),
             inputs: inputs.try_into().expect("fixture has at most 10 inputs"),
-            outputs: Vec::<ScSpecTypeDef>::new()
-                .try_into()
-                .expect("no outputs"),
+            outputs: Vec::<ScSpecTypeDef>::new().try_into().expect("no outputs"),
         }
     }
 
@@ -511,7 +509,8 @@ mod tests {
             ],
         );
         assert_eq!(
-            ramp_index_of(&func, "batch_payout", "recipients").expect("recipients is an input"),
+            ramp_index_of(&func, "batch_payout", "recipients")
+                .expect("recipients is an input"),
             1
         );
     }
@@ -519,7 +518,8 @@ mod tests {
     #[test]
     fn reports_a_missing_ramp_parameter() {
         let func = function("batch_payout", vec![input("funder", ScSpecTypeDef::Address)]);
-        let err = ramp_index_of(&func, "batch_payout", "recipients").expect_err("no such input");
+        let err = ramp_index_of(&func, "batch_payout", "recipients")
+            .expect_err("no such input");
         assert!(err.0.contains("has no parameter named \"recipients\""), "{err}");
     }
 
