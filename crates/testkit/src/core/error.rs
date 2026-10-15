@@ -155,4 +155,23 @@ mod tests {
         let err = TestkitError::Misuse("boom".into());
         assert!(!err.to_string().contains(err.code()));
     }
+
+    #[test]
+    fn representative_diagnostics_snapshot() {
+        let snapshot = [
+            TestkitError::AssertionFailed("expected balance of `alice` to be 100, found 90".into())
+                .to_string(),
+            TestkitError::DecodeFailed("expected i128, got Symbol".into()).to_string(),
+            TestkitError::Misuse("advance_days(2) requires a positive duration".into()).to_string(),
+        ];
+
+        assert_eq!(
+            snapshot,
+            [
+                "assertion failed: expected balance of `alice` to be 100, found 90",
+                "failed to decode value: expected i128, got Symbol",
+                "misuse of testkit API: advance_days(2) requires a positive duration",
+            ]
+        );
+    }
 }

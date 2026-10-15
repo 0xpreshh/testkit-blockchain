@@ -5,7 +5,9 @@ body:
   - type: markdown
     attributes:
       value: |
-        Check `BUILD_SPEC.md` §3 (Scope boundaries) first. Proposals for
+        Before filing, review the [scope boundaries](../../BUILD_SPEC.md#3-scope-boundaries),
+        [architecture](../../ARCHITECTURE.md), and
+        [contribution guidance](../../CONTRIBUTING.md). Proposals for
         mainnet/testnet forking, deployment tooling, frontend/JS testing,
         a test runner, or network-dependent features will be declined.
   - type: textarea
