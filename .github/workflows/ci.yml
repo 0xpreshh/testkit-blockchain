@@ -24,6 +24,32 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Rust edition policy (see CONTRIBUTING.md)
+        run: |
+          status=0
+          if ! grep -qxF 'edition = "2021"' Cargo.toml; then
+            echo "::error file=Cargo.toml::workspace edition must be declared in [workspace.package]"
+            status=1
+          fi
+          for manifest in crates/*/Cargo.toml examples/*/Cargo.toml; do
+            if ! grep -qxF 'edition.workspace = true' "$manifest"; then
+              echo "::error file=$manifest::must set 'edition.workspace = true'"
+              status=1
+            fi
+          done
+          exit $status
+      - name: Library and CLI stay decoupled (see ARCHITECTURE.md)
+        run: |
+          status=0
+          if cargo tree -p soroban-testkit -e normal --prefix none | grep -q '^soroban-testkit-cli v'; then
+            echo "::error::soroban-testkit must not depend on soroban-testkit-cli"
+            status=1
+          fi
+          if cargo tree -p soroban-testkit-cli -e normal --prefix none | grep -q '^soroban-testkit v'; then
+            echo "::error::soroban-testkit-cli must not depend on soroban-testkit"
+            status=1
+          fi
+          exit $status
 
   test:
     name: build + test
