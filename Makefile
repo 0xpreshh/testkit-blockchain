@@ -1,6 +1,6 @@
-.PHONY: check fmt lint test doc audit build clean
+.PHONY: check fmt lint test doc audit deny cli build clean
 
-check: fmt lint test
+check: fmt lint test doc audit deny cli
 
 build:
 	cargo build --workspace
@@ -19,6 +19,12 @@ doc:
 
 audit:
 	cargo audit
+
+deny:
+	cargo deny check
+
+cli:
+	cargo test -p soroban-testkit-cli
 
 clean:
 	cargo clean

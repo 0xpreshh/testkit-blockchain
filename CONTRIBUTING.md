@@ -56,6 +56,12 @@ cargo deny check
 - No `unwrap()` or `expect()` in library code outside tests.
 - Assertion helpers panic deliberately (that is their contract), but always
   with `TestkitError` context, never a bare `panic!("...")` message.
+- Diagnostics use American English, lowercase sentence starts, and no
+  trailing periods. Use backticks for API identifiers and punctuation only
+  when it separates readable clauses or structured values. Keep wording
+  specific about the expectation and the observed value; treat changes to
+  these messages as public developer-experience changes and pin
+  representative output in focused tests.
 - Every public item needs a doc comment with a runnable `# Example` block.
   `#![deny(missing_docs)]` is enforced from Module 8 onward.
 - Every assertion helper needs two tests: one where it passes, one where it

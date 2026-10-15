@@ -2,6 +2,12 @@ name: Bug report
 description: Something in soroban-testkit doesn't behave as documented
 labels: ["bug"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing, review the [scope boundaries](../../BUILD_SPEC.md#3-scope-boundaries),
+        [architecture](../../ARCHITECTURE.md), and
+        [contribution guidance](../../CONTRIBUTING.md).
   - type: textarea
     id: problem
     attributes:
