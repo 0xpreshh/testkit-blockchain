@@ -51,6 +51,25 @@ cargo install cargo-deny --locked
 cargo deny check
 ```
 
+## Rust edition policy
+
+- **Where it is set:** the edition is declared once, in `[workspace.package]`
+  in the root `Cargo.toml`. Every workspace member sets
+  `edition.workspace = true` and must not hard-code its own edition.
+  The `lint` job in CI fails if a member does not inherit it.
+- **When it changes:** only after a new Rust edition is released and the
+  pinned toolchain (`rust-toolchain.toml`, `stable`) supports it. Edition
+  bumps are never folded into a feature or fix PR.
+- **How it changes:** one dedicated PR, titled
+  `chore(workspace): adopt Rust <year> edition`, that:
+  1. updates `edition` under `[workspace.package]`;
+  2. runs `cargo fix --edition --workspace` and commits any resulting
+     changes in the same PR;
+  3. passes the full `make check` and `cargo doc` gates with no
+     new warnings.
+- **No behavior changes in the same PR.** If an edition migration needs
+  a source change that alters behavior, split it out into its own PR first.
+
 ## Code conventions
 
 - No `unwrap()` or `expect()` in library code outside tests.

@@ -104,6 +104,32 @@ fn audit_stdin_reports_no_findings_on_invalid_input() {
 }
 
 #[test]
+fn audit_json_declares_schema_version_and_findings() {
+    let output = run(&["audit", "examples/vault/src", "--json"]);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(output.status.success(), "stdout: {stdout}");
+    assert!(
+        stdout.starts_with("{\"schema_version\":1,"),
+        "schema_version must lead the document: {stdout}"
+    );
+    assert!(stdout.contains("\"finding_count\":"), "{stdout}");
+    assert!(stdout.contains("\"rule\":\"missing-require-auth\""), "{stdout}");
+    assert!(stdout.contains("\"disclaimer\":\"soroban-testkit audit"), "{stdout}");
+}
+
+#[test]
+fn audit_json_on_a_clean_file_is_an_empty_findings_list() {
+    let output = run(&["audit", "crates/cli/src/commands/mod.rs", "--json"]);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "stdout: {stdout}");
+    assert!(
+        stdout.trim().ends_with(",\"finding_count\":0,\"findings\":[]}"),
+        "{stdout}"
+    );
+}
+
+#[test]
 fn limits_finds_the_real_mainnet_write_ceiling_for_batch_payout() {
     let build = Command::new("cargo")
         .args([
