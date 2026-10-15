@@ -65,6 +65,72 @@ cargo deny check
   helper whose failure message doesn't tell the user what went wrong and
   what to look at is not done.
 
+## Maintainer SDK review checklist
+
+The scheduled CI job builds against whatever `soroban-sdk` version is
+currently latest on crates.io and opens an issue automatically if that
+build or test run fails. When that issue lands, work through it in this
+order:
+
+1. **Read the failure, not just the summary.** Open the scheduled job's
+   log and find the first failing step (build error vs. test failure vs.
+   doc-build warning) — later failures are often downstream of the first.
+2. **Diff the SDK changelog.** Compare the pinned `soroban-sdk` version in
+   `Cargo.toml` against the latest, and read every entry in between for
+   breaking changes (removed items, changed signatures, new required
+   trait methods).
+3. **Reproduce locally** against the new version before changing
+   anything:
+   ```sh
+   cargo update -p soroban-sdk --precise <new-version>
+   cargo test --workspace
+   ```
+4. **Fix forward, don't just re-pin.** If the failure is a real breaking
+   change, update the affected call sites and tests in the same PR as the
+   version bump — a version bump with disabled tests or `#[ignore]` is
+   not an acceptable fix.
+5. **Update the pinned version safely.** Bump `soroban-sdk` in
+   `Cargo.toml` to the version you validated, run `cargo update -p
+   soroban-sdk --precise <version>` to sync `Cargo.lock`, and run the full
+   `make check` before opening the PR.
+6. **Close the scheduled-job issue** by referencing it (`Closes #N`) in
+   the version-bump PR, not by closing it manually — so the fix and the
+   failure stay linked in history.
+
+If the new SDK version is not yet safe to adopt (e.g. an upstream
+regression), leave the pin as-is, comment on the issue with what's
+blocking the bump, and leave the issue open as a tracking item.
+
+## API deprecation policy
+
+Public API removals and signature changes follow a two-step deprecation
+window rather than landing as a breaking change in the same release:
+
+1. **Deprecate first.** Mark the item `#[deprecated(since = "x.y.z", note
+   = "...")]`, where the note names the replacement API and, if
+   applicable, a removal-target version. Keep the deprecated item fully
+   functional — a deprecation warning, not a behavior change.
+2. **Document the replacement.** The deprecation note and the changelog
+   entry must both say what to migrate to, not just what is going away.
+3. **Wait at least one minor release** before removing a deprecated
+   public item. Patch releases never remove a deprecated item.
+4. **Remove in a dedicated PR**, called out in the changelog under a
+   "Breaking changes" heading, once the deprecation window has elapsed.
+
+### Example
+
+```rust
+#[deprecated(since = "0.4.0", note = "use `TestEnv::address` instead")]
+pub fn new_address(env: &Env) -> Address {
+    // ...
+}
+```
+
+The crate-level `#![deny(missing_docs)]` lint (see
+[Code conventions](#code-conventions)) still applies to deprecated items;
+a `#[deprecated]` item keeps its doc comment and `# Example` block until
+it is removed.
+
 ## Local setup
 
 ```sh

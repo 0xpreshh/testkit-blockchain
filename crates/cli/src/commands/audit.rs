@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use clap::Args;
@@ -13,7 +14,8 @@ use super::CliError;
 #[derive(Args)]
 pub struct AuditArgs {
     /// Path to the contract crate to audit (its `.rs` files are scanned
-    /// recursively).
+    /// recursively). Pass `-` to read a single source file from stdin
+    /// instead, for editor integrations that audit unsaved buffers.
     #[arg(value_name = "PATH", default_value = ".")]
     path: PathBuf,
     /// Exit non-zero if any findings are reported.
@@ -43,14 +45,22 @@ struct Finding {
 pub fn run(args: AuditArgs) -> Result<(), CliError> {
     let mut findings = Vec::new();
 
-    for entry in WalkDir::new(&args.path).into_iter().filter_map(Result::ok) {
-        if !entry.file_type().is_file() {
-            continue;
+    if args.path == Path::new("-") {
+        let mut src = String::new();
+        std::io::stdin()
+            .read_to_string(&mut src)
+            .map_err(|err| CliError(format!("failed to read stdin: {err}")))?;
+        audit_source(&src, Path::new("<stdin>"), &mut findings);
+    } else {
+        for entry in WalkDir::new(&args.path).into_iter().filter_map(Result::ok) {
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            if entry.path().extension().is_none_or(|ext| ext != "rs") {
+                continue;
+            }
+            audit_file(entry.path(), &mut findings)?;
         }
-        if entry.path().extension().is_none_or(|ext| ext != "rs") {
-            continue;
-        }
-        audit_file(entry.path(), &mut findings)?;
     }
 
     if findings.is_empty() {
@@ -85,9 +95,19 @@ pub fn run(args: AuditArgs) -> Result<(), CliError> {
 fn audit_file(path: &Path, findings: &mut Vec<Finding>) -> Result<(), CliError> {
     let src = std::fs::read_to_string(path)
         .map_err(|err| CliError(format!("failed to read {}: {err}", path.display())))?;
-    let file = match syn::parse_file(&src) {
+    audit_source(&src, path, findings);
+    Ok(())
+}
+
+/// Parses `src` (the contents of a single `.rs` file, attributed to
+/// `path` in findings) and walks it for audit findings. An empty or
+/// unparseable source produces zero findings rather than an error —
+/// not every `.rs` file under a crate root need parse standalone, and
+/// a stdin editor buffer may be mid-edit.
+fn audit_source(src: &str, path: &Path, findings: &mut Vec<Finding>) {
+    let file = match syn::parse_file(src) {
         Ok(file) => file,
-        Err(_) => return Ok(()), // Not every .rs file under a crate root need parse standalone.
+        Err(_) => return,
     };
 
     let mut visitor = FunctionVisitor {
@@ -95,7 +115,6 @@ fn audit_file(path: &Path, findings: &mut Vec<Finding>) -> Result<(), CliError> 
         findings,
     };
     visitor.visit_file(&file);
-    Ok(())
 }
 
 struct FunctionVisitor<'a> {

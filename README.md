@@ -108,6 +108,37 @@ past that boundary. Ledger read/write counts and transaction size aren't
 reported (they come from a network-side simulated footprint this crate
 doesn't produce); instructions and memory, measured locally, are.
 
+## Offline install
+
+Contributors working without network access to crates.io can prefetch and
+verify dependencies ahead of time, then build and test fully offline:
+
+```sh
+# On a machine with network access: fetch every dependency into the
+# local Cargo registry cache and vendor it alongside the workspace.
+cargo vendor --locked vendor > cargo-vendor-config.toml
+
+# Copy `vendor/` and `cargo-vendor-config.toml` to the offline machine,
+# then point Cargo at the vendored sources instead of crates.io by
+# appending the generated config to .cargo/config.toml:
+mkdir -p .cargo
+cat cargo-vendor-config.toml >> .cargo/config.toml
+```
+
+With the vendor directory in place, `cargo build`, `cargo test
+--workspace`, and `cargo doc --workspace` all resolve dependencies from
+`vendor/` with no network access. `cargo vendor --locked` fails loudly if
+`Cargo.lock` and the registry disagree, so re-run it after any dependency
+bump rather than editing `vendor/` by hand. Verify the result before
+relying on it:
+
+```sh
+cargo test --workspace --offline
+```
+
+`--offline` makes Cargo error immediately if any dependency would need a
+network fetch, instead of silently falling back to it.
+
 ## Status
 
 This crate is under active development. See `BUILD_SPEC.md` for the build
