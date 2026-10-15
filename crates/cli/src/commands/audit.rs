@@ -21,7 +21,16 @@ pub struct AuditArgs {
     /// Exit non-zero if any findings are reported.
     #[arg(long)]
     strict: bool,
+    /// Print findings as a JSON document instead of text. The document
+    /// carries `schema_version`; see [`AUDIT_JSON_SCHEMA_VERSION`].
+    #[arg(long)]
+    json: bool,
 }
+
+/// Version of the `audit --json` document shape. Bump it on any breaking
+/// change: a removed or renamed field, or a changed type or meaning.
+/// Adding a new field is not breaking and keeps the same version.
+const AUDIT_JSON_SCHEMA_VERSION: u32 = 1;
 
 struct Finding {
     file: PathBuf,
@@ -63,7 +72,9 @@ pub fn run(args: AuditArgs) -> Result<(), CliError> {
         }
     }
 
-    if findings.is_empty() {
+    if args.json {
+        println!("{}", render_json(&findings));
+    } else if findings.is_empty() {
         println!("audit: no findings");
     } else {
         for finding in &findings {
@@ -90,6 +101,56 @@ pub fn run(args: AuditArgs) -> Result<(), CliError> {
         )));
     }
     Ok(())
+}
+
+/// Renders findings as the `audit --json` document, schema version
+/// [`AUDIT_JSON_SCHEMA_VERSION`]:
+///
+/// ```json
+/// {"schema_version":1,"disclaimer":"...","finding_count":1,"findings":[{"file":"src/lib.rs","line":7,"severity":"warning","rule":"missing-require-auth","message":"..."}]}
+/// ```
+fn render_json(findings: &[Finding]) -> String {
+    let disclaimer = "soroban-testkit audit is a linter with three heuristics, not a security \
+                      product — a missing finding is not a security guarantee.";
+    let items: Vec<String> = findings
+        .iter()
+        .map(|finding| {
+            format!(
+                "{{\"file\":{},\"line\":{},\"severity\":{},\"rule\":{},\"message\":{}}}",
+                json_string(&finding.file.display().to_string()),
+                finding.line,
+                json_string(finding.severity),
+                json_string(finding.rule),
+                json_string(&finding.message),
+            )
+        })
+        .collect();
+    format!(
+        "{{\"schema_version\":{AUDIT_JSON_SCHEMA_VERSION},\"disclaimer\":{},\"finding_count\":{},\"findings\":[{}]}}",
+        json_string(disclaimer),
+        findings.len(),
+        items.join(",")
+    )
+}
+
+/// Quotes and escapes `value` as a JSON string. Hand-rolled so the audit
+/// command takes no serialization dependency for one small document.
+fn json_string(value: &str) -> String {
+    let mut out = String::with_capacity(value.len() + 2);
+    out.push('"');
+    for ch in value.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }
 
 fn audit_file(path: &Path, findings: &mut Vec<Finding>) -> Result<(), CliError> {
@@ -305,4 +366,38 @@ impl I128ArithmeticVisitor<'_> {
 
 fn type_is_i128(ty: &Type) -> bool {
     matches!(ty, Type::Path(p) if p.path.is_ident("i128"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn json_document_declares_schema_version_and_findings() {
+        let findings = vec![Finding {
+            file: PathBuf::from("src/lib.rs"),
+            line: 7,
+            rule: "missing-require-auth",
+            severity: "warning",
+            message: "fn pay takes Address parameter(s) [\"from\"]".to_string(),
+        }];
+        let json = render_json(&findings);
+        assert!(json.starts_with("{\"schema_version\":1,"), "{json}");
+        assert!(json.contains("\"finding_count\":1"), "{json}");
+        assert!(json.contains("\"line\":7"), "{json}");
+        assert!(json.contains("\"rule\":\"missing-require-auth\""), "{json}");
+        assert!(json.contains(r#"[\"from\"]"#), "{json}");
+    }
+
+    #[test]
+    fn json_document_for_no_findings_is_an_empty_list() {
+        let json = render_json(&[]);
+        assert!(json.ends_with(",\"finding_count\":0,\"findings\":[]}"), "{json}");
+    }
+
+    #[test]
+    fn json_strings_escape_quotes_backslashes_and_control_characters() {
+        let expected = "\"a\\\"b\\\\c\\nd\\u0001\"";
+        assert_eq!(json_string("a\"b\\c\nd\u{1}"), expected);
+    }
 }
